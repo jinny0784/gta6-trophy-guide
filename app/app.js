@@ -1,195 +1,170 @@
-// Leonida Legend — entry point. Loads the trophy data, restores the reader's
-// progress, and wires the checklist, filters, roadmap, missables view, detail
-// dialog and export/import together. Everything runs from local files.
+// Leonida Legend — app wiring.
+//
+// Loads the trophy data, restores the player's checklist from the store,
+// binds the filter controls and the export / import actions, and re-renders
+// the list whenever anything changes. Everything runs locally; the only
+// network request is the data file sitting next to this page.
 
-import {
-  loadProgress, saveProgress, setEarned, setCount,
-  exportProgress, parseImportedProgress,
-} from './store.js';
-import { KIND_FILTERS, trophyMatches } from './filters.js';
-import {
-  trophyCard, renderHeaderProgress, renderRoadmap, renderMissables, renderDialog,
-} from './render.js';
+import { Store } from './store.js';
+import { emptyFilters, categoriesOf, applyFilters } from './filters.js';
+import { renderList, renderProgress } from './render.js';
 
-const state = {
-  data: null,
-  trophiesByName: new Map(),
-  progress: loadProgress(),
-  view: 'trophies',
-  filters: { kind: 'all', grade: 'all', status: 'all', search: '' },
+const els = {
+  list: document.getElementById('trophy-list'),
+  empty: document.getElementById('empty-state'),
+  progress: document.getElementById('progress'),
+  search: document.getElementById('filter-search'),
+  grade: document.getElementById('filter-grade'),
+  category: document.getElementById('filter-category'),
+  visibility: document.getElementById('filter-visibility'),
+  state: document.getElementById('filter-state'),
+  missable: document.getElementById('filter-missable'),
+  resultCount: document.getElementById('result-count'),
+  exportBtn: document.getElementById('btn-export'),
+  importBtn: document.getElementById('btn-import'),
+  importDialog: document.getElementById('import-dialog'),
+  importText: document.getElementById('import-text'),
+  importFile: document.getElementById('import-file'),
+  importApply: document.getElementById('import-apply'),
+  importCancel: document.getElementById('import-cancel'),
+  importError: document.getElementById('import-error'),
+  resetBtn: document.getElementById('btn-reset'),
+  loadError: document.getElementById('load-error'),
 };
 
-function persistAndRender() {
-  saveProgress(state.progress);
-  renderAll();
+let trophies = [];
+let state = Store.load();
+const filters = emptyFilters();
+
+function refresh() {
+  const visible = applyFilters(trophies, filters, (id) => Store.isDone(state, id));
+  renderList(els.list, visible, state, Store);
+  renderProgress(els.progress, Store.progress(state, trophies));
+  els.empty.hidden = visible.length !== 0;
+  els.resultCount.textContent =
+    visible.length === trophies.length
+      ? `Showing all ${trophies.length} trophies`
+      : `Showing ${visible.length} of ${trophies.length} trophies`;
 }
 
-const callbacks = {
-  onToggle(trophy, earned) {
-    setEarned(state.progress, trophy, earned);
-    persistAndRender();
-  },
-  onCount(trophy, value) {
-    setCount(state.progress, trophy, value);
-    persistAndRender();
-  },
-  onReveal(trophy) {
-    state.progress.revealed[trophy.name] = true;
-    persistAndRender();
-  },
-  onOpen(trophy) {
-    openDialog(trophy);
-  },
-};
+function bindControls() {
+  els.search.addEventListener('input', () => {
+    filters.query = els.search.value.trim();
+    refresh();
+  });
+  els.grade.addEventListener('change', () => {
+    filters.grade = els.grade.value;
+    refresh();
+  });
+  els.category.addEventListener('change', () => {
+    filters.category = els.category.value;
+    refresh();
+  });
+  els.visibility.addEventListener('change', () => {
+    filters.visibility = els.visibility.value;
+    refresh();
+  });
+  els.state.addEventListener('change', () => {
+    filters.state = els.state.value;
+    refresh();
+  });
+  els.missable.addEventListener('change', () => {
+    filters.missable = els.missable.value;
+    refresh();
+  });
 
-function openDialog(trophy) {
-  renderDialog(trophy, state.progress, state.data, callbacks);
-  const dialog = document.getElementById('trophy-dialog');
-  if (typeof dialog.showModal === 'function') dialog.showModal();
-}
-
-function renderList() {
-  const grid = document.getElementById('trophy-grid');
-  grid.textContent = '';
-  const shown = state.data.trophies.filter((t) => trophyMatches(t, state.filters, state.progress));
-  for (const trophy of shown) grid.appendChild(trophyCard(trophy, state.progress, callbacks));
-  document.getElementById('empty-state').hidden = shown.length > 0;
-  document.getElementById('result-count').textContent =
-    `Showing ${shown.length} of ${state.data.trophies.length} trophies`;
-}
-
-function renderFooterSources() {
-  const line = document.getElementById('footer-sources');
-  line.textContent = 'List sources: ';
-  state.data.listSources.forEach((source, index) => {
-    if (index > 0) line.appendChild(document.createTextNode(' · '));
-    if (source.url) {
-      const link = document.createElement('a');
-      link.href = source.url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = source.label;
-      line.appendChild(link);
-    } else {
-      line.appendChild(document.createTextNode(source.label));
+  // One delegated listener for everything inside the card list.
+  els.list.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target.dataset && target.dataset.action === 'toggle-done') {
+      Store.toggleDone(state, target.dataset.id);
+      refresh();
+    }
+  });
+  els.list.addEventListener('click', (event) => {
+    const target = event.target.closest('[data-action="reveal"]');
+    if (target) {
+      Store.reveal(state, target.dataset.id);
+      refresh();
     }
   });
 }
 
-function renderAll() {
-  renderHeaderProgress(state.data.trophies, state.progress);
-  renderList();
-  renderRoadmap(state.data.roadmap, state.trophiesByName, state.progress, callbacks.onOpen);
-  renderMissables(state.data.trophies, state.progress, callbacks);
-  const toggle = document.getElementById('spoiler-toggle');
-  toggle.checked = state.progress.spoiler;
-}
-
-function buildKindChips() {
-  const row = document.getElementById('kind-chips');
-  for (const kind of KIND_FILTERS) {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = `chip${state.filters.kind === kind.id ? ' is-active' : ''}`;
-    chip.textContent = kind.label;
-    chip.addEventListener('click', () => {
-      state.filters.kind = kind.id;
-      for (const other of row.children) other.classList.remove('is-active');
-      chip.classList.add('is-active');
-      renderList();
+function bindActions() {
+  els.exportBtn.addEventListener('click', () => {
+    const blob = new Blob([Store.exportJSON(state)], {
+      type: 'application/json',
     });
-    row.appendChild(chip);
-  }
-}
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'leonida-legend-progress.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
-function wireToolbar() {
-  document.getElementById('search').addEventListener('input', (event) => {
-    state.filters.search = event.target.value.trim();
-    renderList();
+  els.importBtn.addEventListener('click', () => {
+    els.importError.textContent = '';
+    els.importText.value = '';
+    if (typeof els.importDialog.showModal === 'function') {
+      els.importDialog.showModal();
+    }
   });
-  document.getElementById('grade-filter').addEventListener('change', (event) => {
-    state.filters.grade = event.target.value;
-    renderList();
+  els.importCancel.addEventListener('click', () => {
+    els.importDialog.close();
   });
-  document.getElementById('status-filter').addEventListener('change', (event) => {
-    state.filters.status = event.target.value;
-    renderList();
-  });
-  document.getElementById('spoiler-toggle').addEventListener('change', (event) => {
-    state.progress.spoiler = event.target.checked;
-    persistAndRender();
-  });
-  document.getElementById('clear-filters').addEventListener('click', () => {
-    state.filters = { kind: 'all', grade: 'all', status: 'all', search: '' };
-    document.getElementById('search').value = '';
-    document.getElementById('grade-filter').value = 'all';
-    document.getElementById('status-filter').value = 'all';
-    buildKindChipsRefresh();
-    renderList();
-  });
-  document.getElementById('export-btn').addEventListener('click', () => exportProgress(state.progress));
-  const fileInput = document.getElementById('import-file');
-  document.getElementById('import-btn').addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files[0];
+  els.importFile.addEventListener('change', () => {
+    const file = els.importFile.files[0];
     if (!file) return;
-    try {
-      const text = await file.text();
-      state.progress = parseImportedProgress(text);
-      persistAndRender();
-    } catch {
-      alert('That file could not be read as Leonida Legend progress.');
-    }
-    fileInput.value = '';
+    const reader = new FileReader();
+    reader.onload = () => {
+      els.importText.value = String(reader.result || '');
+    };
+    reader.readAsText(file);
   });
-  document.getElementById('reset-btn').addEventListener('click', () => {
-    if (confirm('Clear all tracked progress in this browser?')) {
-      state.progress = { earned: {}, counts: {}, revealed: {}, spoiler: state.progress.spoiler };
-      persistAndRender();
+  els.importApply.addEventListener('click', () => {
+    if (Store.importJSON(state, els.importText.value)) {
+      state = Store.load();
+      els.importDialog.close();
+      refresh();
+    } else {
+      els.importError.textContent =
+        'That does not look like a Leonida Legend progress export. Paste the JSON from an export and try again.';
     }
   });
-}
 
-function buildKindChipsRefresh() {
-  const row = document.getElementById('kind-chips');
-  row.textContent = '';
-  buildKindChips();
-}
-
-function wireTabs() {
-  const tabs = document.querySelectorAll('.tab');
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      state.view = tab.dataset.view;
-      tabs.forEach((other) => other.classList.toggle('is-active', other === tab));
-      for (const view of ['trophies', 'roadmap', 'missables']) {
-        const section = document.getElementById(`view-${view}`);
-        const active = view === state.view;
-        section.hidden = !active;
-        section.classList.toggle('is-active', active);
-      }
-      document.getElementById('toolbar').style.display = state.view === 'trophies' ? '' : 'none';
-      window.scrollTo({ top: 0 });
-    });
+  els.resetBtn.addEventListener('click', () => {
+    if (window.confirm('Reset all progress and revealed spoilers?')) {
+      Store.resetAll(state);
+      refresh();
+    }
   });
 }
 
 async function boot() {
-  const response = await fetch('data/trophies.json');
-  state.data = await response.json();
-  state.trophiesByName = new Map(state.data.trophies.map((t) => [t.name, t]));
-  buildKindChips();
-  wireToolbar();
-  wireTabs();
-  renderFooterSources();
-  renderAll();
-  document.getElementById('dialog-close').addEventListener('click', () => {
-    document.getElementById('trophy-dialog').close();
-  });
+  bindControls();
+  bindActions();
+  try {
+    const response = await fetch('data/trophies.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    trophies = data.trophies;
+  } catch (err) {
+    els.loadError.hidden = false;
+    els.loadError.textContent =
+      'Could not load data/trophies.json. If you opened this page as a file:// URL, ' +
+      'some browsers block local data files — serve the app folder with any static ' +
+      'file server (for example `npx serve app`) and reload.';
+    return;
+  }
+
+  for (const category of categoriesOf(trophies)) {
+    const option = document.createElement('option');
+    option.value = category;
+    option.textContent = category;
+    els.category.append(option);
+  }
+  refresh();
 }
 
-boot().catch((error) => {
-  document.getElementById('result-count').textContent =
-    `The trophy data could not be loaded (${error.message}). Serve the app/ folder over HTTP and reload.`;
-});
-// Round 2: hand-in program fixed for the grader's read-only run (see main.ts).
+boot();

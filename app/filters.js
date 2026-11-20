@@ -1,53 +1,54 @@
-// Filter logic for the checklist: kind chips, grade, status and search text.
-// Kept separate from rendering so the rules are easy to read in one place.
+// Leonida Legend — filtering logic (pure functions, no DOM access).
+//
+// A filter set looks like:
+//   {
+//     query:      'free text',          // matches name, description, guide
+//     grade:      'all' | 'platinum' | 'gold' | 'silver' | 'bronze',
+//     category:   'all' | <category name>,
+//     visibility: 'all' | 'visible' | 'hidden',
+//     state:      'all' | 'done' | 'todo',
+//     missable:   'all' | 'missable'
+//   }
 
-import { isEarned } from './store.js';
-
-export const KIND_FILTERS = [
-  { id: 'all', label: 'All kinds' },
-  { id: 'story', label: 'Story' },
-  { id: 'missable', label: 'Missable' },
-  { id: 'collectibles', label: 'Collectibles' },
-  { id: 'activities', label: 'Activities' },
-  { id: 'crime', label: 'Crime' },
-  { id: 'side', label: 'Side stories' },
-  { id: 'secrets', label: 'Secrets' },
-  { id: 'completion', label: 'Completion' },
-];
-
-export const KIND_LABELS = {
-  story: 'Story',
-  side: 'Side story',
-  collectibles: 'Collectibles',
-  activities: 'Activity',
-  crime: 'Crime',
-  secrets: 'Secret',
-  completion: 'Completion',
-};
-
-export function trophyMatches(trophy, filters, progress) {
-  if (filters.kind === 'missable') {
-    if (!trophy.missable) return false;
-  } else if (filters.kind !== 'all' && trophy.kind !== filters.kind) {
-    return false;
-  }
-  if (filters.grade !== 'all' && trophy.grade !== filters.grade) return false;
-  const earned = isEarned(progress, trophy);
-  if (filters.status === 'earned' && !earned) return false;
-  if (filters.status === 'todo' && earned) return false;
-  if (filters.status === 'missable' && !trophy.missable) return false;
-  if (filters.search) {
-    const haystack = `${trophy.name} ${trophy.description} ${trophy.kind}`.toLowerCase();
-    if (!haystack.includes(filters.search.toLowerCase())) return false;
-  }
-  return true;
+export function emptyFilters() {
+  return {
+    query: '',
+    grade: 'all',
+    category: 'all',
+    visibility: 'all',
+    state: 'all',
+    missable: 'all',
+  };
 }
 
-// A hidden trophy is spoiler-protected while protection is on, it is not yet
-// earned, and the reader has not revealed it by hand.
-export function isSpoilerHidden(trophy, progress) {
-  return Boolean(
-    progress.spoiler && trophy.hidden && !progress.earned[trophy.name] && !progress.revealed[trophy.name],
-  );
+export function categoriesOf(trophies) {
+  const seen = new Set();
+  for (const t of trophies) seen.add(t.category);
+  return [...seen].sort((a, b) => a.localeCompare(b));
 }
-// Round 2: hand-in program fixed for the grader's read-only run (see main.ts).
+
+function matchesQuery(t, query) {
+  if (!query) return true;
+  const haystack = `${t.name} ${t.description} ${t.guide} ${t.category}`.toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => haystack.includes(word));
+}
+
+export function applyFilters(trophies, filters, isDone) {
+  return trophies.filter((t) => {
+    if (filters.grade !== 'all' && t.grade !== filters.grade) return false;
+    if (filters.category !== 'all' && t.category !== filters.category) {
+      return false;
+    }
+    if (filters.visibility === 'visible' && t.hidden) return false;
+    if (filters.visibility === 'hidden' && !t.hidden) return false;
+    if (filters.missable === 'missable' && !t.missable) return false;
+    if (filters.state === 'done' && !isDone(t.id)) return false;
+    if (filters.state === 'todo' && isDone(t.id)) return false;
+    if (!matchesQuery(t, filters.query)) return false;
+    return true;
+  });
+}

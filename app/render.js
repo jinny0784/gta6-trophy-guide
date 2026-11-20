@@ -1,11 +1,23 @@
-// Rendering: trophy cards, the header progress summary, the roadmap view,
-// the missables view and the trophy detail dialog. All text comes from
-// app/data/trophies.json; this file only lays it out.
+// Leonida Legend — rendering.
+//
+// Builds the progress header and the trophy card list from the data plus the
+// player's checklist state. Hidden trophies are spoiler-blurred until the
+// player reveals them. All interaction is wired up in app.js through
+// data-action attributes, so this module only produces DOM.
 
-import { isEarned } from './store.js';
-import { KIND_LABELS, isSpoilerHidden } from './filters.js';
+const GRADE_LABEL = {
+  platinum: 'Platinum',
+  gold: 'Gold',
+  silver: 'Silver',
+  bronze: 'Bronze',
+};
 
-const GRADE_LABELS = { platinum: 'Platinum', gold: 'Gold', silver: 'Silver', bronze: 'Bronze' };
+const GRADE_ICON = {
+  platinum: '✦',
+  gold: '★',
+  silver: '★',
+  bronze: '★',
+};
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -14,246 +26,110 @@ function el(tag, className, text) {
   return node;
 }
 
-export function formatCount(value, target) {
-  if (target >= 10000) return `$${value.toLocaleString('en-US')}`;
-  return `${value}`;
-}
+// One trophy card. `done` and `revealed` come from the store.
+export function trophyCard(trophy, done, revealed) {
+  const spoiled = trophy.hidden && !revealed;
+  const card = el('article', `card grade-border-${trophy.grade}`);
+  card.dataset.id = trophy.id;
+  if (done) card.classList.add('is-done');
+  if (spoiled) card.classList.add('is-spoiled');
 
-export function targetLabel(trophy) {
-  if (typeof trophy.target !== 'number') return '';
-  return trophy.target >= 10000 ? `$${trophy.target.toLocaleString('en-US')}` : `${trophy.target}`;
-}
+  // --- header row: checkbox, grade icon, name, pills -------------------
+  const head = el('div', 'card-head');
 
-function tagRow(trophy) {
-  const row = el('div', 'tag-row');
-  row.appendChild(el('span', 'tag grade', GRADE_LABELS[trophy.grade]));
-  row.appendChild(el('span', 'tag kind', KIND_LABELS[trophy.kind] || trophy.kind));
-  if (trophy.hidden) row.appendChild(el('span', 'tag hidden-tag', 'Hidden'));
-  if (trophy.missable) row.appendChild(el('span', 'tag missable', 'Missable'));
-  if (typeof trophy.target === 'number') {
-    row.appendChild(el('span', 'tag', `Target ${targetLabel(trophy)}`));
-  }
-  return row;
-}
+  const checkLabel = el('label', 'check');
+  checkLabel.title = done ? 'Mark as not done' : 'Mark as done';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = done;
+  checkbox.dataset.action = 'toggle-done';
+  checkbox.dataset.id = trophy.id;
+  const box = el('span', 'box');
+  checkLabel.append(checkbox, box);
+  head.append(checkLabel);
 
-// One trophy card. Callbacks: onToggle(trophy, earned), onCount(trophy, n),
-// onOpen(trophy), onReveal(trophy).
-export function trophyCard(trophy, progress, callbacks) {
-  const earned = isEarned(progress, trophy);
-  const spoiled = isSpoilerHidden(trophy, progress);
-  const card = el('article', `card grade-${trophy.grade}${earned ? ' is-earned' : ''}${spoiled ? ' is-spoiled' : ''}`);
+  const icon = el('span', `grade-icon grade-${trophy.grade}`, GRADE_ICON[trophy.grade]);
+  icon.title = GRADE_LABEL[trophy.grade];
+  head.append(icon);
 
-  const top = el('div', 'card-top');
-  const check = document.createElement('input');
-  check.type = 'checkbox';
-  check.className = 'card-check';
-  check.checked = earned;
-  check.setAttribute('aria-label', `Mark ${trophy.name} as earned`);
-  check.addEventListener('change', () => callbacks.onToggle(trophy, check.checked));
-  top.appendChild(check);
+  const name = el('h3', 't-name', spoiled ? 'Hidden Trophy' : trophy.name);
+  head.append(name);
 
-  const nameBtn = el('button', 'card-name', spoiled ? 'Hidden trophy' : trophy.name);
-  nameBtn.type = 'button';
-  nameBtn.addEventListener('click', () => callbacks.onOpen(trophy));
-  top.appendChild(nameBtn);
-  card.appendChild(top);
+  const pills = el('div', 'pills');
+  pills.append(el('span', `pill pill-${trophy.grade}`, GRADE_LABEL[trophy.grade]));
+  if (trophy.hidden) pills.append(el('span', 'pill pill-hidden', 'Hidden'));
+  if (trophy.missable) pills.append(el('span', 'pill pill-missable', 'Missable'));
+  head.append(pills);
+  card.append(head);
 
-  card.appendChild(el('p', 'card-desc', spoiled ? 'Hidden until earned. Turn spoiler protection off, earn it, or reveal it to read the official text.' : trophy.description));
-  card.appendChild(tagRow(trophy));
+  // --- body: description + guide, blurred while spoiled ----------------
+  const body = el('div', 'card-body');
+  if (spoiled) body.classList.add('blurred');
 
-  if (typeof trophy.target === 'number') {
-    const wrap = el('div', 'card-progress');
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '0';
-    input.value = String(progress.counts[trophy.name] || 0);
-    input.setAttribute('aria-label', `Progress count for ${trophy.name}`);
-    input.addEventListener('change', () => callbacks.onCount(trophy, input.value));
-    const label = el('span', '', `of ${targetLabel(trophy)}`);
-    const bar = el('div', 'mini-bar');
-    const fill = el('div', 'mini-fill');
-    const pct = Math.min(100, ((progress.counts[trophy.name] || 0) / trophy.target) * 100);
-    fill.style.width = `${pct}%`;
-    bar.appendChild(fill);
-    wrap.append(input, label, bar);
-    card.appendChild(wrap);
-  }
+  const desc = el('p', 't-desc', spoiled ? 'Hidden description' : trophy.description);
+  body.append(desc);
 
-  const actions = el('div', 'card-actions');
-  const guideBtn = el('button', 'guide-btn', 'Read the guide');
-  guideBtn.type = 'button';
-  guideBtn.addEventListener('click', () => callbacks.onOpen(trophy));
-  actions.appendChild(guideBtn);
+  const meta = el('p', 't-meta', trophy.category);
+  body.append(meta);
+
+  const guideWrap = el('div', 't-guide');
+  guideWrap.append(el('h4', null, 'How to unlock'));
+  guideWrap.append(el('p', null, trophy.guide));
+  body.append(guideWrap);
+  card.append(body);
+
   if (spoiled) {
-    const revealBtn = el('button', 'reveal-btn', 'Reveal anyway');
+    const revealBtn = el('button', 'reveal-btn', '👁 Reveal spoiler');
     revealBtn.type = 'button';
-    revealBtn.addEventListener('click', () => callbacks.onReveal(trophy));
-    actions.appendChild(revealBtn);
-    card.appendChild(el('p', 'spoiler-note', 'Spoiler protection is on: this hidden trophy stays blurred until you earn it.'));
+    revealBtn.dataset.action = 'reveal';
+    revealBtn.dataset.id = trophy.id;
+    card.append(revealBtn);
   }
-  card.appendChild(actions);
+
   return card;
 }
 
-export function renderHeaderProgress(trophies, progress) {
-  const earnedList = trophies.filter((t) => isEarned(progress, t));
-  const count = document.getElementById('earned-count');
-  const pct = document.getElementById('progress-pct');
-  const bar = document.getElementById('progress-bar');
-  const fill = document.getElementById('progress-fill');
-  count.textContent = String(earnedList.length);
-  const percent = Math.round((earnedList.length / trophies.length) * 100);
-  pct.textContent = `${percent}%`;
-  bar.setAttribute('aria-valuenow', String(earnedList.length));
-  fill.style.width = `${percent}%`;
-
-  const tally = document.getElementById('grade-tally');
-  tally.textContent = '';
-  for (const grade of ['platinum', 'gold', 'silver', 'bronze']) {
-    const total = trophies.filter((t) => t.grade === grade).length;
-    const got = earnedList.filter((t) => t.grade === grade).length;
-    const span = el('span', '');
-    const bold = el('b', '', `${got}/${total}`);
-    span.append(bold, document.createTextNode(` ${GRADE_LABELS[grade]}`));
-    tally.appendChild(span);
+export function renderList(container, trophies, state, Store) {
+  container.textContent = '';
+  const fragment = document.createDocumentFragment();
+  for (const trophy of trophies) {
+    fragment.append(
+      trophyCard(
+        trophy,
+        Store.isDone(state, trophy.id),
+        Store.isRevealed(state, trophy.id),
+      ),
+    );
   }
-  const hiddenTotal = trophies.filter((t) => t.hidden).length;
-  const hiddenGot = earnedList.filter((t) => t.hidden).length;
-  const span = el('span', '');
-  const bold = el('b', '', `${hiddenGot}/${hiddenTotal}`);
-  span.append(bold, document.createTextNode(' Hidden'));
-  tally.appendChild(span);
+  container.append(fragment);
 }
 
-export function renderRoadmap(roadmap, trophiesByName, progress, onOpen) {
-  const head = document.getElementById('roadmap-head');
-  head.textContent = '';
-  head.appendChild(el('h2', '', 'The road to Vice Got a Price!'));
-  head.appendChild(el('p', '', roadmap.summary));
-  const facts = el('div', 'roadmap-facts');
-  const play = el('span', '');
-  play.append(el('b', '', `${roadmap.playthroughs} playthrough`), document.createTextNode(' needed'));
-  const hours = el('span', '');
-  hours.append(el('b', '', `~${roadmap.estimatedHours} hours`), document.createTextNode(' estimated'));
-  const diff = el('span', '');
-  diff.append(el('b', '', 'Difficulty '), document.createTextNode(roadmap.difficulty));
-  facts.append(play, hours, diff);
-  head.appendChild(facts);
+// Progress header: big percentage, a bar, and per-grade counts.
+export function renderProgress(container, summary) {
+  container.textContent = '';
 
-  const wrap = document.getElementById('roadmap-steps');
-  wrap.textContent = '';
-  for (const step of roadmap.steps) {
-    const section = el('section', 'step');
-    section.appendChild(el('div', 'step-num', String(step.stage)));
-    const body = el('div', '');
-    body.appendChild(el('h3', '', `Step ${step.stage} — ${step.title}`));
-    body.appendChild(el('p', '', step.detail));
-    const chips = el('div', 'step-trophies');
-    for (const name of step.trophies) {
-      const trophy = trophiesByName.get(name);
-      if (!trophy) continue;
-      const chip = el('button', isEarned(progress, trophy) ? 'done' : '', name);
-      chip.type = 'button';
-      chip.addEventListener('click', () => onOpen(trophy));
-      chips.appendChild(chip);
-    }
-    body.appendChild(chips);
-    section.appendChild(body);
-    wrap.appendChild(section);
-  }
-}
-
-export function renderMissables(trophies, progress, callbacks) {
-  const intro = document.getElementById('missable-intro');
-  intro.textContent = '';
-  intro.appendChild(el('h2', '', 'Missable trophies — read this before Chapter 1 ends'));
-  const text = el('p', '');
-  const strong = el('strong', '', 'One trophy can be missed: Positive Mental Attitude. ');
-  text.append(
-    strong,
-    document.createTextNode(
-      'Its first meditation spot — Lucia meditating on the balcony of Jason\'s house — only exists during Chapter 1, and Grand Theft Auto VI has no mission replay, so once the chapter ends there is no way back short of a new game. Everything else in the game stays available after the credits. The protection that covers the whole list is cheap: the game gives 15 manual save slots, so keep one save at the start of every chapter and one from just before the final mission, and never use cheats on your trophy save.',
-    ),
+  const big = el('div', 'progress-big');
+  big.append(el('span', 'progress-pct', `${summary.percent}%`));
+  big.append(
+    el('span', 'progress-count', `${summary.done} / ${summary.total} trophies`),
   );
-  intro.appendChild(text);
+  container.append(big);
 
-  const list = document.getElementById('missable-list');
-  list.textContent = '';
-  for (const trophy of trophies.filter((t) => t.missable)) {
-    list.appendChild(trophyCard(trophy, progress, callbacks));
+  const barOuter = el('div', 'progress-bar');
+  const barInner = el('div', 'progress-fill');
+  barInner.style.width = `${summary.percent}%`;
+  barOuter.append(barInner);
+  container.append(barOuter);
+
+  const chips = el('div', 'progress-chips');
+  for (const grade of ['platinum', 'gold', 'silver', 'bronze']) {
+    const g = summary.byGrade[grade];
+    const chip = el(
+      'span',
+      `chip chip-${grade}`,
+      `${GRADE_ICON[grade]} ${GRADE_LABEL[grade]} ${g.done}/${g.total}`,
+    );
+    chips.append(chip);
   }
-  document.getElementById('missable-badge').textContent = String(trophies.filter((t) => t.missable).length);
+  container.append(chips);
 }
-
-// The detail dialog: official text, your tracker controls, the guide in this
-// app's own words, and the sources the guide draws on.
-export function renderDialog(trophy, progress, data, callbacks) {
-  const body = document.getElementById('dialog-body');
-  body.textContent = '';
-
-  body.appendChild(el('h2', '', trophy.name));
-  body.appendChild(tagRow(trophy));
-  body.appendChild(el('p', 'dialog-label', 'Official description (PlayStation)'));
-  body.appendChild(el('p', 'dialog-desc', trophy.description));
-
-  if (trophy.missable) {
-    const callout = el('div', 'missable-callout');
-    const strong = el('strong', '', 'Missable. ');
-    callout.append(strong, document.createTextNode('Part of this trophy exists only in Chapter 1 — see the guide below before you finish the chapter.'));
-    body.appendChild(callout);
-  }
-
-  body.appendChild(el('p', 'dialog-label', 'Your tracker'));
-  const controls = el('div', 'dialog-progress');
-  const earnLabel = el('label', '');
-  const earnBox = document.createElement('input');
-  earnBox.type = 'checkbox';
-  earnBox.checked = isEarned(progress, trophy);
-  earnBox.addEventListener('change', () => callbacks.onToggle(trophy, earnBox.checked));
-  earnLabel.append(earnBox, document.createTextNode(' Earned'));
-  controls.appendChild(earnLabel);
-  if (typeof trophy.target === 'number') {
-    const countLabel = el('label', '');
-    const countInput = document.createElement('input');
-    countInput.type = 'number';
-    countInput.min = '0';
-    countInput.value = String(progress.counts[trophy.name] || 0);
-    countInput.addEventListener('change', () => callbacks.onCount(trophy, countInput.value));
-    countLabel.append(document.createTextNode(`Progress (of ${targetLabel(trophy)}): `), countInput);
-    controls.appendChild(countLabel);
-  }
-  const stage = data.roadmap.steps.find((s) => s.trophies.includes(trophy.name));
-  if (stage) controls.appendChild(el('span', '', `Roadmap step ${stage.stage}: ${stage.title}`));
-  body.appendChild(controls);
-
-  body.appendChild(el('p', 'dialog-label', 'Guide — in our own words'));
-  const guide = el('p', 'dialog-guide');
-  // The one missable warning leads its guide in bold.
-  if (trophy.missable && trophy.guide.startsWith('MISSABLE')) {
-    const strong = el('strong', '', 'MISSABLE');
-    guide.append(strong, document.createTextNode(trophy.guide.slice('MISSABLE'.length)));
-  } else {
-    guide.textContent = trophy.guide;
-  }
-  body.appendChild(guide);
-
-  body.appendChild(el('p', 'dialog-label', 'Sources'));
-  const list = el('ul', 'source-list');
-  const sourceLinks = new Map(data.listSources.map((s) => [s.label, s.url]));
-  for (const source of trophy.sources) {
-    const item = el('li', '');
-    const url = [...sourceLinks.entries()].find(([label]) => source.startsWith(label.split(' — ')[0]))?.[1];
-    if (url) {
-      const link = el('a', '', source);
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      item.appendChild(link);
-    } else {
-      item.textContent = source;
-    }
-    list.appendChild(item);
-  }
-  body.appendChild(list);
-}
-// Round 2: hand-in program fixed for the grader's read-only run (see main.ts).

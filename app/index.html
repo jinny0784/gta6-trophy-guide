@@ -3,48 +3,36 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Leonida Legend — GTA VI Trophy Guide &amp; Tracker (PS5)</title>
-<meta name="description" content="Offline guide and progress tracker for all 55 Grand Theft Auto VI PlayStation 5 trophies: official names, descriptions and grades, a cited guide for every trophy, a platinum roadmap and the missable flags.">
+<title>Leonida Legend — GTA VI Trophy Guide &amp; Tracker</title>
+<meta name="description" content="Offline trophy guide and checklist tracker for Grand Theft Auto VI: all 55 trophies with guides, spoiler protection, filters and a platinum roadmap.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="site-header">
-  <div class="header-inner">
-    <div class="brand">
-      <div class="brand-mark" aria-hidden="true">LL</div>
-      <div>
-        <h1>Leonida Legend</h1>
-        <p class="tagline">Grand Theft Auto VI — Trophy Guide &amp; Tracker · PlayStation 5 · all 55 trophies</p>
-      </div>
-    </div>
-    <div class="progress-panel" aria-label="Your progress">
-      <div class="progress-numbers">
-        <span id="earned-count">0</span><span class="of"> / 55 earned</span>
-        <span id="progress-pct" class="pct">0%</span>
-      </div>
-      <div class="progress-bar" role="progressbar" aria-label="Trophies earned" aria-valuemin="0" aria-valuemax="55" aria-valuenow="0" id="progress-bar">
-        <div class="progress-fill" id="progress-fill"></div>
-      </div>
-      <div class="grade-tally" id="grade-tally"></div>
-    </div>
-  </div>
+<header class="hero">
+  <p class="hero-kicker">Grand Theft Auto VI · State of Leonida</p>
+  <h1>Leonida <span class="neon">Legend</span></h1>
+  <p class="hero-sub">
+    The offline trophy guide &amp; tracker for GTA VI. All 55 trophies —
+    1 Platinum, 2 Gold, 6 Silver, 46 Bronze — with a plain-words guide for
+    every one, spoiler blur on the 28 hidden trophies, and a checklist that
+    remembers your progress on this device.
+  </p>
+  <div id="progress" class="progress-panel" aria-live="polite"></div>
+  <p class="missable-warning">
+    ⚠ One trophy is missable: <strong>Positive Mental Attitude</strong> —
+    meditate at every spot as you find it, and do not save all 18 for the endgame.
+  </p>
 </header>
 
-<nav class="view-tabs" aria-label="Views">
-  <button type="button" class="tab is-active" data-view="trophies">Trophy checklist</button>
-  <button type="button" class="tab" data-view="roadmap">Platinum roadmap</button>
-  <button type="button" class="tab" data-view="missables">Missables <span class="tab-badge" id="missable-badge">1</span></button>
-</nav>
-
-<section class="toolbar" id="toolbar" aria-label="Find and filter trophies">
-  <label class="search-box">
-    <span class="visually-hidden">Search trophies</span>
-    <input type="search" id="search" placeholder="Search a trophy, e.g. Shootist…" autocomplete="off">
-  </label>
-  <div class="chip-row" id="kind-chips" role="group" aria-label="Filter by kind"></div>
-  <div class="toolbar-row">
-    <label>Grade
-      <select id="grade-filter">
+<section class="controls" aria-label="Filters and progress tools">
+  <div class="control-row">
+    <label class="control grow">
+      <span>Search</span>
+      <input id="filter-search" type="search" placeholder="Try “vault”, “meditate”, “races”…" autocomplete="off">
+    </label>
+    <label class="control">
+      <span>Grade</span>
+      <select id="filter-grade">
         <option value="all">All grades</option>
         <option value="platinum">Platinum</option>
         <option value="gold">Gold</option>
@@ -52,56 +40,159 @@
         <option value="bronze">Bronze</option>
       </select>
     </label>
-    <label>Status
-      <select id="status-filter">
-        <option value="all">All</option>
-        <option value="earned">Earned</option>
-        <option value="todo">Not earned</option>
+    <label class="control">
+      <span>Category</span>
+      <select id="filter-category">
+        <option value="all">All categories</option>
+      </select>
+    </label>
+    <label class="control">
+      <span>Spoilers</span>
+      <select id="filter-visibility">
+        <option value="all">Hidden + visible</option>
+        <option value="visible">Visible only</option>
+        <option value="hidden">Hidden only</option>
+      </select>
+    </label>
+    <label class="control">
+      <span>Progress</span>
+      <select id="filter-state">
+        <option value="all">Done + to do</option>
+        <option value="todo">To do</option>
+        <option value="done">Done</option>
+      </select>
+    </label>
+    <label class="control">
+      <span>Missable</span>
+      <select id="filter-missable">
+        <option value="all">All trophies</option>
         <option value="missable">Missable only</option>
       </select>
     </label>
-    <label class="spoiler-toggle">
-      <input type="checkbox" id="spoiler-toggle" checked>
-      Spoiler protection <span class="hint">(hides hidden trophies until earned)</span>
-    </label>
-    <span class="toolbar-spacer"></span>
-    <button type="button" id="export-btn" class="tool-btn">Export progress</button>
-    <button type="button" id="import-btn" class="tool-btn">Import progress</button>
-    <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden">
-    <button type="button" id="reset-btn" class="tool-btn danger">Reset</button>
   </div>
-  <p class="result-count" id="result-count" role="status"></p>
+  <div class="control-row actions">
+    <p id="result-count" class="result-count">Loading trophies…</p>
+    <div class="action-buttons">
+      <button id="btn-export" type="button">Export progress</button>
+      <button id="btn-import" type="button">Import progress</button>
+      <button id="btn-reset" type="button" class="danger">Reset</button>
+    </div>
+  </div>
 </section>
 
 <main>
-  <section id="view-trophies" class="view is-active" aria-label="Trophy checklist">
-    <div id="trophy-grid" class="trophy-grid"></div>
-    <p id="empty-state" class="empty-state" hidden>No trophies match those filters. <button type="button" id="clear-filters">Clear filters</button></p>
-  </section>
-
-  <section id="view-roadmap" class="view" aria-label="Platinum roadmap" hidden>
-    <div class="roadmap-head" id="roadmap-head"></div>
-    <div id="roadmap-steps" class="roadmap-steps"></div>
-  </section>
-
-  <section id="view-missables" class="view" aria-label="Missable trophies" hidden>
-    <div class="missable-intro" id="missable-intro"></div>
-    <div id="missable-list" class="trophy-grid"></div>
-  </section>
+  <p id="load-error" class="load-error" hidden></p>
+  <div id="trophy-list" class="trophy-grid"></div>
+  <p id="empty-state" class="empty-state" hidden>
+    No trophies match those filters. Loosen the search or pick a wider grade / category.
+  </p>
 </main>
 
-<dialog id="trophy-dialog" aria-labelledby="dialog-name">
-  <div class="dialog-body" id="dialog-body"></div>
-  <button type="button" class="dialog-close" id="dialog-close" aria-label="Close">×</button>
-</dialog>
+<section class="roadmap" aria-label="Platinum roadmap">
+  <h2>Platinum Roadmap — 6 steps, one playthrough</h2>
+  <p class="roadmap-intro">
+    Estimated total: roughly <strong>150–200 hours</strong> in a single
+    playthrough. No online play is required, and nothing besides
+    Positive Mental Attitude can be missed — so relax and play the story first.
+  </p>
+  <ol class="roadmap-steps">
+    <li>
+      <h3>Play the story, enjoy the ride</h3>
+      <p>
+        Chapters 1–5 take around 50–60 hours and hand you every chapter and
+        named-mission trophy, plus the vague story trophies, on their own.
+        Explore freely as you go — and meditate at every meditation spot the
+        moment you find it, because Positive Mental Attitude is the game's one
+        missable trophy.
+      </p>
+    </li>
+    <li>
+      <h3>Close out the side strands</h3>
+      <p>
+        Finish the final missions for Andy, Kenton, Billy, Randy and Tyrone,
+        take Bret's unique-animal hunt, and complete 8 full Strangers &amp;
+        Freaks mission strands for the Silver. These characters also unlock
+        useful services and income for the grind ahead.
+      </p>
+    </li>
+    <li>
+      <h3>Sweep the activities</h3>
+      <p>
+        250 of the 397 stunts, gold medals in all 42 shooting range challenges,
+        a Top Fun drone race win at all 14 locations, 20 different race wins,
+        an arcade game, Cal's fishing challenge, 50 challenges, and a taste of
+        all 9 activity types for Master of None.
+      </p>
+    </li>
+    <li>
+      <h3>Go on a crime spree</h3>
+      <p>
+        Rob 5 bank vaults and escape, hit an armored truck, rob a jewelry store
+        without being detected, chain 3 shop robberies back-to-back, rob an
+        illegal operation belonging to each gang, take down 5 enemies in one
+        Combat Focus, and lose a 4-star wanted level with your partner.
+      </p>
+    </li>
+    <li>
+      <h3>Collect, register, spend</h3>
+      <p>
+        Complete 3 collectible card sets, scan 100 locations with WAiNK,
+        discover 100 vehicles, buy all 8 garages ($160,000 total), register 10
+        vehicles to Scooter Bros, spend $100,000 across shops, launder $250,000
+        in Marked Bills, and explore every corner of Leonida.
+      </p>
+    </li>
+    <li>
+      <h3>The 100% push</h3>
+      <p>
+        Follow the in-game checklist (Touch Pad &gt; Progress &gt; 100%
+        Completion) until A Long Road pops. Vice Got a Price! — the Platinum —
+        follows the moment your last trophy lands. Welcome to the legend club.
+      </p>
+    </li>
+  </ol>
+</section>
 
-<footer class="site-footer">
-  <p><strong>About the data.</strong> Trophy names, descriptions and grades are the official PlayStation text for Grand Theft Auto VI (55 trophies: 1 platinum, 2 gold, 6 silver, 46 bronze; 28 hidden), as listed by Exophase and PSNProfiles. Every guide is written for this app and names its sources beside the trophy. This is a fan-made guide: it is not affiliated with Rockstar Games or PlayStation, and it uses no official artwork or logos.</p>
-  <p class="sources-line" id="footer-sources"></p>
-  <p>Progress is saved only in this browser (localStorage). Export it to a file to keep a backup or move it to another device. The app works fully offline.</p>
+<section class="sources" aria-label="Data sources">
+  <h2>About this data</h2>
+  <p>
+    Trophy names, grades, hidden status and official descriptions were
+    cross-checked across at least two independent published lists before
+    being included; where a source disagreed, the majority reading was used.
+    The “How to unlock” notes are this guide's own words. Sources consulted:
+  </p>
+  <ul>
+    <li>Push Square — GTA 6 Trophy Guide &amp; Roadmap</li>
+    <li>Of Zen and Computing — GTA 6 Trophy List: All 55 Trophies</li>
+    <li>EGamers.io — GTA 6 Trophy List: All 55 Trophies and Achievements</li>
+    <li>KeenGamer — GTA 6 Trophy Guide &amp; Platinum Roadmap</li>
+    <li>GamesFuze — GTA 6 Trophy List: All 55 Trophies &amp; Achievements</li>
+  </ul>
+  <p>
+    Leonida Legend is a fan-made tool and is not affiliated with Rockstar
+    Games or Take-Two Interactive. Grand Theft Auto and GTA VI are trademarks
+    of their respective owners.
+  </p>
+</section>
+
+<footer class="footer">
+  <p>Leonida Legend — works fully offline. Your checklist lives in this browser's local storage; export it if you switch devices.</p>
 </footer>
+
+<dialog id="import-dialog">
+  <form method="dialog" class="import-form">
+    <h3>Import progress</h3>
+    <p>Paste a Leonida Legend progress export below, or choose the exported file. Importing replaces your current checklist on this device.</p>
+    <textarea id="import-text" rows="8" placeholder='{"app":"leonida-legend", …}'></textarea>
+    <input id="import-file" type="file" accept="application/json,.json">
+    <p id="import-error" class="import-error"></p>
+    <div class="import-actions">
+      <button id="import-apply" type="button">Import</button>
+      <button id="import-cancel" type="button">Cancel</button>
+    </div>
+  </form>
+</dialog>
 
 <script type="module" src="app.js"></script>
 </body>
 </html>
-<!-- Round 2: hand-in program fixed for the grader's read-only run (see main.ts). -->
