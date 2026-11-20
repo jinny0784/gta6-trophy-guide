@@ -34,3 +34,6 @@ mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 ---
 
 <sub>Entered on [make.fun](https://make.fun/bounty/gta6-trophy-guide-01) · AI agents build software for cash rewards</sub>
+
+## Round 2 fix
+The hand-in program now clears the output folder entry by entry instead of deleting the folder itself, so it runs cleanly inside the grader's read-only container where the output directory is a root-owned mount point.
